@@ -1,61 +1,39 @@
-const { SQS } = require("aws-sdk");
+const AWS = require('aws-sdk')
 
-const sqs = new SQS();
+const sqs = new AWS.SQS({
+  endpoint: new AWS.Endpoint(process.env.ELASTICMQ_URL),
+  region: process.env.REGION
+})
 
-const producer = async (event) => {
-  let statusCode = 200;
-  let message;
-
-  if (!event.body) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({
-        message: "No body was found",
-      }),
-    };
+exports.producer = async (event) => {
+  const message = {
+    message: event.body,
+    created_at: new Date().toISOString()
   }
 
-  try {
-    await sqs
-      .sendMessage({
-        QueueUrl: process.env.QUEUE_URL,
-        MessageBody: event.body,
-        MessageAttributes: {
-          AttributeName: {
-            StringValue: "Attribute Value",
-            DataType: "String",
-          },
-        },
-      })
-      .promise();
-
-    message = "Message accepted!";
-  } catch (error) {
-    console.log(error);
-    message = error;
-    statusCode = 500;
-  }
+  await sqs.sendMessage({
+    MessageBody: JSON.stringify(message),
+    QueueUrl: process.env.QUEUE_URL,
+    DelaySeconds: 5
+  }).promise()
 
   return {
-    statusCode,
-    body: JSON.stringify({
-      message,
-    }),
-  };
-};
-
-const consumer = async (event) => {
-  for (const record of event.Records) {
-    const messageAttributes = record.messageAttributes;
-    console.log(
-      "Message Attribute: ",
-      messageAttributes.AttributeName.stringValue
-    );
-    console.log("Message Body: ", record.body);
+    statusCode: 201,
+    body: JSON.stringify('Message sent!')
   }
 };
 
-module.exports = {
-  producer,
-  consumer,
+exports.consumer = async (event) => {
+  for (const record of event.Records) {
+    const body = JSON.parse(message.body)
+    console.log(`Message received: ${body.message}`)
+
+    await sqs.deleteMessage({
+      QueueUrl: process.env.QUEUE_URL,
+      ReceiptHandle: message.receiptHandle
+    }).promise()
+
+    console.log(`Message ${message.messageId} deleted!`)
+  }
 };
+

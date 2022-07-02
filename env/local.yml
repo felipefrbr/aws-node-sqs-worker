@@ -1,0 +1,5 @@
+ELASTICMQ_URL: http://localhost:9324
+QUEUE_URL: http://localhost:9324/queue/MyFirstQueue
+REGION: us-east-1
+ACCESS_KEY_ID: na
+SECRET_ACCESS_KEY: na

@@ -1,15 +1,36 @@
 service: aws-node-sqs-worker-project
+
 frameworkVersion: '3'
+
+plugins:
+  - serverless-offline
+  - serverless-offline-sqs
 
 provider:
   name: aws
   runtime: nodejs14.x
+  stage: ${opt:stage, 'local'}
+  region: ${opt:region, 'us-east-1'}
+  environment: ${file(./env/${self:provider.stage}.yml)}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - "sqs:SendMessage"
+            - "sqs:ReceiveMessage"
+          Resource:
+            - Fn::GetAtt: [MyFirstQueue, Arn]
 
-constructs:
-  jobs:
-    type: queue
-    worker:
-      handler: handler.consumer
+custom:
+  serverless-offline-sqs:
+    autoCreate: true
+    apiVersion: '2012-11-05'
+    endpoint: ${self:provider.environment.ELASTICMQ_URL}
+    region: ${self:provider.region}
+    accessKeyId: ${self:provider.environment.ACCESS_KEY_ID}
+    secretAccessKey: ${self:provider.environment.SECRET_ACCESS_KEY}
+    skipCacheInvalidation: false
 
 functions:
   producer:
@@ -18,8 +39,20 @@ functions:
       - httpApi:
           method: post
           path: /produce
-    environment:
-      QUEUE_URL: ${construct:jobs.queueUrl}
 
-plugins:
-  - serverless-lift
+  consumer:
+    handler: handler.consumer
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt:
+              - MyFirstQueue
+              - Arn
+
+resources:
+  Resources:
+    MyFirstQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: MyFirstQueue
+    
